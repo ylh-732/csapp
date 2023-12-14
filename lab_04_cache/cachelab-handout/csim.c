@@ -33,13 +33,22 @@ void get_command_args(int argc, char *argv[]) {
     }
 }
 
+void cache_simulator() {
+    char op;
+    unsigned long address;
+    unsigned size;
+
+    while (fscanf(trace_file, " %c %lx,%d", &op, &address, &size) == 3) {
+        printf("%c %lx %d\n", op, address, size);
+    }
+
+    fclose(trace_file);
+}
+
 int main(int argc, char *argv[])
 {
     get_command_args(argc, argv);
-    printf("%d\n", s);
-    printf("%d\n", S);
-    printf("%d\n", E);
-    printf("%d\n", b);
+    cache_simulator();
     
     return 0;
 }
