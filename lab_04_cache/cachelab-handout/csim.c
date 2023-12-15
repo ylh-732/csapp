@@ -3,6 +3,7 @@
 #include <getopt.h> 
 #include <stdlib.h> 
 #include <unistd.h>
+#include <stdbool.h>
 
 typedef struct cache_line {
     unsigned tag;
@@ -74,22 +75,99 @@ unsigned long get_set_index(unsigned long address) {
     return (address >> b) & mask;
 }
 
+cache_line* find_cache(unsigned set_index, unsigned tag) {
+    cache_line* line = cache[set_index].head->next;
+    cache_line* tail = cache[set_index].tail;
+
+    while (line != tail) {
+        if (line->tag == tag) {
+            break;
+        }
+        line = line->next;
+    }
+
+    if (line == tail) {
+        miss_count++;
+        return NULL;
+    } else {
+        hit_count++;
+        return line;
+    }
+}
+
+bool cache_is_full(unsigned set_index) {
+    return cache[set_index].num_valid_line == E;
+}
+
+void add_last(unsigned set_index, unsigned tag) {
+    cache_line* line = (cache_line*)malloc(sizeof(cache_line));
+
+    cache_line* tail = cache[set_index].tail;
+    cache_line* tail_prev = cache[set_index].tail->prev;
+
+    line->tag = tag;
+    line->prev = tail_prev;
+    line->next = tail;
+
+    tail_prev->next = line;
+    tail->prev = line;
+
+    cache[set_index].num_valid_line++;
+}
+
+void remove_line(unsigned set_index, cache_line* line) {
+    line->prev->next = line->next;
+    line->next->prev = line->prev;
+
+    cache[set_index].num_valid_line--;
+    free(line);
+}
+
+void evict(unsigned set_index) {
+    remove_line(set_index, cache[set_index].head->next);
+    eviction_count++;
+}
+
+void access_data(unsigned long address) {
+    unsigned tag = address >> (s + b);
+    unsigned set_index = get_set_index(address);
+
+    cache_line* line = find_cache(set_index, tag);
+
+    if (line != NULL) {
+        remove_line(set_index, line);
+    } else {
+        if (cache_is_full(set_index)) {
+            evict(set_index);
+        }
+    }
+
+    add_last(set_index, tag);
+}
+
 void cache_simulator() {
     char op;
     unsigned long address;
     unsigned size;
 
     while (fscanf(trace_file, " %c %lx,%d", &op, &address, &size) == 3) {
-        unsigned tag = address >> (s + b);
-        unsigned set_index = get_set_index(address);
-
-        printf("%c %lx,%d\n", op, address, size);
-        printf("tag: %x\n", tag);
-        printf("set_index: %x\n", set_index);
+        switch(op) {
+            case 'L':
+                access_data(address);
+                break;
+            case 'S':
+                access_data(address);
+                break;
+            case 'M':
+                access_data(address);
+                access_data(address);
+                break;
+        }
     }
 
     fclose(trace_file);
 }
+
 
 int main(int argc, char* argv[])
 {
@@ -101,3 +179,4 @@ int main(int argc, char* argv[])
     
     return 0;
 }
+
